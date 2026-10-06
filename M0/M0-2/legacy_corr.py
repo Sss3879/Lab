@@ -15,14 +15,23 @@ def load_csv(csv_path, col_x, col_y):
     with open(csv_path) as f:
         reader = csv.DictReader(f)
         for row in reader:
-            xs.append(float(row[col_x]))
-            ys.append(float(row[col_y]))
+            try:
+                xs.append(float(row[col_x]))
+                ys.append(float(row[col_y]))
+            except ValueError:
+                raise ValueError("CSV contains non-numeric or empty values")
     return xs, ys
 
 def calculate_correlation(xs, ys):
     """计算均值和 Pearson 相关系数"""
 
     n = len(xs)
+
+    if n == 0:
+        raise ValueError("CSV contains no data")
+
+    if len(xs) != len(ys):
+        raise ValueError("xs and ys must have the same length")
 
     sum_x = 0.0
     sum_y = 0.0
