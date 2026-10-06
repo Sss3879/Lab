@@ -1,9 +1,9 @@
 import yaml
 import csv
 import math
+import os
+import argparse
 import numpy as np
-
-CONFIG_PATH = "config.yaml"
 
 def load_config(config_path):
     with open(config_path) as f:
@@ -67,11 +67,17 @@ def calculate_correlation(xs, ys):
 
     return mean_x, mean_y, r
 
-def main():
+def main(config_path):
     """程序主流程"""
-    cfg = load_config(CONFIG_PATH)
+    cfg = load_config(config_path)
 
     csv_path = cfg["input_csv"]
+
+    if not os.path.isabs(csv_path):
+        config_dir = os.path.dirname(os.path.abspath(config_path))
+        csv_path = os.path.join(config_dir, csv_path)
+
+
     col_x = cfg["columns"]["x"]
     col_y = cfg["columns"]["y"]
 
@@ -99,7 +105,16 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        # 创建参数解析器
+        parser = argparse.ArgumentParser()
+        # 告诉解析器有哪些参数
+        parser.add_argument("--config", required=True)
+
+        # 解析用户实际输入的参数
+        args = parser.parse_args()
+        
+        main(args.config)
+
     except Exception as e:
         print(f"Error: {e}")
         raise SystemExit(1)
