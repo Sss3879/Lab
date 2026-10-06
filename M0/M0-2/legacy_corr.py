@@ -1,6 +1,7 @@
 import yaml
 import csv
 import math
+import numpy as np
 
 CONFIG_PATH = "config.yaml"
 
@@ -82,6 +83,18 @@ def main():
     print("mean_x =", mean_x)
     print("mean_y =", mean_y)
     print("r =", r)
+
+
+    # 使用 NumPy 验证手写 Pearson 相关系数
+    numpy_r = np.corrcoef(xs, ys)[0, 1]
+
+    print("numpy_r =", numpy_r)
+
+    if np.isclose(r, numpy_r):
+        print("Correlation verification: PASS")
+    else:
+        print("Correlation verification: FAIL")
+
 
 
 if __name__ == "__main__":
