@@ -43,7 +43,9 @@ def calculate_correlation(xs, ys):
         dy = dy + b * b
         prod = prod + a * b
     
-    denom = dx * dy
+    denom = math.sqrt(dx * dy)
+    if denom == 0:
+        raise ValueError("Pearson correlation is undefined when a variable has zero variance.")
     r = prod / denom
 
     return mean_x, mean_y, r
