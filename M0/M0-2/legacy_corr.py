@@ -14,6 +14,13 @@ def load_csv(csv_path, col_x, col_y):
     ys = []
     with open(csv_path) as f:
         reader = csv.DictReader(f)
+        
+        if col_x not in reader.fieldnames:
+            raise ValueError(f"CSV column '{col_x}' not found")
+
+        if col_y not in reader.fieldnames:
+            raise ValueError(f"CSV column '{col_y}' not found")
+
         for row in reader:
             try:
                 xs.append(float(row[col_x]))
