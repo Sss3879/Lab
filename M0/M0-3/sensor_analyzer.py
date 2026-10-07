@@ -55,9 +55,9 @@ for v in data:
 std =math. sqrt( acc / len(data))
 
 # --- 剔除离群值 ---
-for v in data:
-    if v > mean + 2 * std:
-        data.remove(v)
+for t , v in zip(times, data):
+    if abs(v - mean) <= 2 * std:
+        cleaned.append((t, v))
 
 # --- 输出清洗后的数据 ---
 output_path = os.path.join("/", OUTPUT_DIR, OUTPUT_FILE)
