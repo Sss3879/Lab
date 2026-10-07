@@ -33,13 +33,34 @@ def main():
     print("=== 传感器数据分析 ===")
 
     # --- 读取数据 ---
-    reader = csv.DictReader(open(INPUT_FILE, "r"))
+    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
 
-    for row in reader:
-        t = row["time"]
-        v = float(row["value"])
-        times.append(t)
-        data.append(v)
+        #表头异常情况处理
+        if not reader.fieldnames or not {"time", "value"} <= set(reader.fieldnames):
+            raise ValueError("CSV 表头必须包含 time 和 value")
+
+
+        for row in reader:
+            t = row["time"]
+            v = row["value"]
+
+            #空内容的处理
+            if t is None or not t.strip() or v is None or not str(v).strip():
+                raise ValueError(f"第 {reader.line_num} 行的 time 或 value 为空")
+            
+            #value 不是数字的处理
+            try:
+                v = float(v)
+            except ValueError as e:
+                raise ValueError(f"第 {reader.line_num} 行的 value 不是数字") from e
+           
+            times.append(t)
+            data.append(v)
+            
+    #空表格的处理
+    if not data:
+        raise ValueError("CSV 没有数据行")
 
     print("共读取 %d 条数据" % len(data))
 
