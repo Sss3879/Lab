@@ -23,55 +23,65 @@ import math
 INPUT_FILE = "sensor_data.csv"
 OUTPUT_FILE = "cleaned_data.csv"
 OUTPUT_DIR = "out"  # 输出目录
+def main():
 
-data = []
-times = []
-cleaned = []
+        
+    data = []
+    times = []
+    cleaned = []
 
-print("=== 传感器数据分析 ===")
+    print("=== 传感器数据分析 ===")
 
-# --- 读取数据 ---
-reader = csv.DictReader(open(INPUT_FILE, "r"))
+    # --- 读取数据 ---
+    reader = csv.DictReader(open(INPUT_FILE, "r"))
 
-for row in reader:
-    t = float(row["time"])
-    v = float(row["value"])
-    times.append(t)
-    data.append(v)
+    for row in reader:
+        t = row["time"]
+        v = float(row["value"])
+        times.append(t)
+        data.append(v)
 
-print("共读取 %d 条数据" % len(data))
+    print("共读取 %d 条数据" % len(data))
 
-# --- 计算平均值 ---
-total = 0
-for v in data:
-    total += v
-mean = total / len(data)
+    # --- 计算平均值 ---
+    total = 0
+    for v in data:
+        total += v
+    mean = total / len(data)
 
-# --- 计算标准差 ---
-acc = 0
-for v in data:
-    acc += (v - mean)**2
+    # --- 计算标准差 ---
+    acc = 0
+    for v in data:
+        acc += (v - mean)**2
 
-std =math. sqrt( acc / len(data))
+    std =math. sqrt( acc / len(data))
 
-# --- 剔除离群值 ---
-for t , v in zip(times, data):
-    if abs(v - mean) <= 2 * std:
-        cleaned.append((t, v))
+    # --- 剔除离群值 ---
+    for t , v in zip(times, data):
+        if abs(v - mean) <= 2 * std:
+            cleaned.append((t, v))
 
-# --- 输出清洗后的数据 ---
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-output_path = os.path.join( OUTPUT_DIR, OUTPUT_FILE)
+    # --- 输出清洗后的数据 ---
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    output_path = os.path.join( OUTPUT_DIR, OUTPUT_FILE)
 
-with open(output_path, "w", newline="",  encoding="utf-8" ) as f:
-    writer = csv.writer(f)
-    writer.writerow(["time", "value"])
-    for t, v in cleaned:
-        writer.writerow([t, v])
+    with open(output_path, "w", newline="",  encoding="utf-8" ) as f:
+        writer = csv.writer(f)
+        writer.writerow(["time", "value"])
+        for t, v in cleaned:
+            writer.writerow([t, v])
 
 
 
-print("均值 mean = %.4f" % mean)
-print("标准差 std = %.4f" % std)
-print("清洗后剩余 %d 条" % len(cleaned))
-print("已保存到 %s" % output_path)
+    print("均值 mean = %.4f" % mean)
+    print("标准差 std = %.4f" % std)
+    print("清洗后剩余 %d 条" % len(cleaned))
+    print("已保存到 %s" % output_path)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, UnicodeError, csv.Error) as e:
+        print(f"错误：{e}", file=sys.stderr)
+        sys.exit(1)
