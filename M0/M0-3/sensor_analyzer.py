@@ -60,12 +60,16 @@ for t , v in zip(times, data):
         cleaned.append((t, v))
 
 # --- 输出清洗后的数据 ---
-output_path = os.path.join("/", OUTPUT_DIR, OUTPUT_FILE)
-f = open(output_path, "w")
-writer = csv.writer(f)
-writer.writerow(["time", "value"])
-for v in cleaned:
-    writer.writerow([v])
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+output_path = os.path.join( OUTPUT_DIR, OUTPUT_FILE)
+
+with open(output_path, "w", newline="",  encoding="utf-8" ) as f:
+    writer = csv.writer(f)
+    writer.writerow(["time", "value"])
+    for t, v in cleaned:
+        writer.writerow([t, v])
+
+
 
 print("均值 mean = %.4f" % mean)
 print("标准差 std = %.4f" % std)
