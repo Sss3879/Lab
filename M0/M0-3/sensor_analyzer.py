@@ -19,11 +19,13 @@ sensor_analyzer.py  —— 上一届学长留下的"能用"的脚本
 import csv
 import os
 import math
+import sys
+import argparse
 
 INPUT_FILE = "sensor_data.csv"
 OUTPUT_FILE = "cleaned_data.csv"
 OUTPUT_DIR = "out"  # 输出目录
-def main():
+def main(input_file, output_file):
 
         
     data = []
@@ -33,7 +35,7 @@ def main():
     print("=== 传感器数据分析 ===")
 
     # --- 读取数据 ---
-    with open(INPUT_FILE, "r", encoding="utf-8") as f:
+    with open(input_file, "r", encoding="utf-8") as f:
         reader = csv.DictReader(f)
 
         #表头异常情况处理
@@ -57,7 +59,7 @@ def main():
            
             times.append(t)
             data.append(v)
-            
+
     #空表格的处理
     if not data:
         raise ValueError("CSV 没有数据行")
@@ -83,10 +85,10 @@ def main():
             cleaned.append((t, v))
 
     # --- 输出清洗后的数据 ---
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
-    output_path = os.path.join( OUTPUT_DIR, OUTPUT_FILE)
+    output_dir = os.path.dirname(os.path.abspath(output_file))
+    os.makedirs(output_dir, exist_ok=True)
 
-    with open(output_path, "w", newline="",  encoding="utf-8" ) as f:
+    with open(output_file, "w", newline="",  encoding="utf-8" ) as f:
         writer = csv.writer(f)
         writer.writerow(["time", "value"])
         for t, v in cleaned:
@@ -97,12 +99,17 @@ def main():
     print("均值 mean = %.4f" % mean)
     print("标准差 std = %.4f" % std)
     print("清洗后剩余 %d 条" % len(cleaned))
-    print("已保存到 %s" % output_path)
+    print("已保存到 %s" % output_file)
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", "-i", default=INPUT_FILE)
+    parser.add_argument("--output", "-o", default=OUTPUT_FILE)
+    args = parser.parse_args()
+
     try:
-        main()
-    except (OSError, ValueError, UnicodeError, csv.Error) as e:
+        main(args.input, args.output)
+    except (ValueError,  csv.Error) as e:
         print(f"错误：{e}", file=sys.stderr)
         sys.exit(1)
