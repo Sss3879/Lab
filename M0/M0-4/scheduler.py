@@ -6,6 +6,7 @@ import math
 import sys
 import random
 import time
+import argparse
 
 def load_config(path):
     """读取 JSON 或 YAML。"""
@@ -150,19 +151,27 @@ def topological_sort(tasks):
     return order
 
 def execute_tasks(tasks, order, timeout):
-    """按依赖顺序模拟执行，失败最多重试两次。"""
+    """按依赖顺序模拟执行，返回包含全部任务的报告。"""
 
     started_at = time.monotonic()
     deadline = started_at + timeout
 
     # 建立“任务名 → 任务配置”的对应关系。
     task_map = {}
+    records = {}
 
     for task in tasks:
-        task_map[task["name"]] = task
+        name = task["name"]
+        task_map[name] = task
+        records[name] = {
+            "name": name,
+            "status": None,
+            "attempts": 0,
+            "duration": 0.0,
+            "started_at": None,
+            "ended_at": None
+        }
 
-    # 保存每个任务的最终状态。
-    statuses = {}
     timed_out = False
 
     for name in order:
@@ -173,17 +182,18 @@ def execute_tasks(tasks, order, timeout):
             break
 
         task = task_map[name]
+        record = records[name]
 
         # 检查前置任务是否全部成功。
         blocked = False
 
         for dependency in task["dependencies"]:
-            if statuses[dependency] != "SUCCESS":
+            if records[dependency]["status"] != "SUCCESS":
                 blocked = True
                 break
 
         if blocked:
-            statuses[name] = "SKIPPED"
+            record["status"] = "SKIPPED"
             print(f"SKIPPED：{name}，前置任务未成功", flush=True)
             continue
 
@@ -197,6 +207,11 @@ def execute_tasks(tasks, order, timeout):
                 timed_out = True
                 break
 
+            record["attempts"] = attempt
+            if attempt == 1:
+                record["started_at"] = time.time()
+
+            attempt_started = time.monotonic()
             print(
                 f"执行：{name}，第 {attempt} 次尝试",
                 flush=True
@@ -205,13 +220,17 @@ def execute_tasks(tasks, order, timeout):
             # 最多等待到截止时间。
             time.sleep(min(task["duration"], remaining))
 
+            # 重试耗时也计入当前任务的实际耗时。
+            record["duration"] += time.monotonic() - attempt_started
+            record["ended_at"] = time.time()
+
             # 等待结束后，先检查是否超时。
             if time.monotonic() >= deadline:
                 timed_out = True
                 break
 
             if random.random() < task["success_rate"]:
-                statuses[name] = "SUCCESS"
+                record["status"] = "SUCCESS"
                 print(f"SUCCESS：{name}", flush=True)
                 break
 
@@ -220,7 +239,7 @@ def execute_tasks(tasks, order, timeout):
             if attempt < 3:
                 print(f"RETRY：{name}", flush=True)
             else:
-                statuses[name] = "SKIPPED"
+                record["status"] = "SKIPPED"
                 print(
                     f"SKIPPED：{name}，三次尝试均失败",
                     flush=True
@@ -235,23 +254,67 @@ def execute_tasks(tasks, order, timeout):
 
         # 当前未完成的任务和未开始的任务都标记为超时。
         for name in order:
-            if name not in statuses:
-                statuses[name] = "TIMEOUT"
+            if records[name]["status"] is None:
+                records[name]["status"] = "TIMEOUT"
                 print(f"TIMEOUT：{name}", flush=True)
 
     total_duration = time.monotonic() - started_at
     print(f"总耗时：{total_duration:.2f} 秒", flush=True)
 
-    return statuses
+    # 报告按配置中的顺序排列，保留未执行任务的记录。
+    task_reports = []
+    for task in tasks:
+        task_reports.append(records[task["name"]])
+
+    return {
+        "timeout": timed_out,
+        "total_duration": total_duration,
+        "tasks": task_reports
+    }
 
 def main():
+    parser = argparse.ArgumentParser(
+        description="按依赖顺序模拟执行任务"
+    )
+
+    parser.add_argument(
+        "--config",
+        required=True,
+        help="配置文件路径，支持 JSON 或 YAML"
+    )
+
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="全局超时秒数，覆盖配置文件中的 timeout"
+    )
+
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=None,
+        help="随机种子，用于复现模拟结果"
+    )
+
+    parser.add_argument(
+        "--report",
+        default="report.json",
+        help="报告输出路径，默认 report.json"
+    )
+
+    args = parser.parse_args()
 
     try:
-        config = load_config("tasks_demo.yaml")
+        config = load_config(args.config)
         tasks = validate_tasks(config)
         order = topological_sort(tasks)
 
-        timeout = config.get("timeout", 15)
+        # 命令行指定了 timeout，就优先使用命令行的值。
+        if args.timeout is not None:
+            timeout = args.timeout
+        else:
+            timeout = config.get("timeout", 15)
 
         if (
             isinstance(timeout, bool)
@@ -261,15 +324,23 @@ def main():
         ):
             raise ValueError("timeout 必须是大于 0 的有限数值")
 
-        timeout = config.get("timeout", 15)
-        execute_tasks(tasks, order, timeout)
+        if args.seed is not None:
+            random.seed(args.seed)
+
+        report = execute_tasks(tasks, order, timeout)
+
+        with open(args.report, "w", encoding="utf-8") as file:
+            json.dump(report, file, ensure_ascii=False, indent=2)
+            file.write("\n")
+
+        print(f"报告已保存：{args.report}")
 
     except FileNotFoundError as error:
-            print(
-                f"错误：找不到配置文件：{error.filename}",
-                file=sys.stderr
-            )
-            return 1
+        print(
+            f"错误：找不到文件：{error.filename}",
+            file=sys.stderr
+        )
+        return 1
 
     except yaml.YAMLError as error:
         print(
@@ -283,7 +354,6 @@ def main():
         return 1
 
     return 0
-
 
 if __name__ == "__main__":
     sys.exit(main())
