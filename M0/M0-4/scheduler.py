@@ -2,7 +2,8 @@ import json
 from pathlib import Path
 import yaml
 from collections import deque
-
+import math
+import sys
 
 def load_config(path):
     """读取 JSON 或 YAML。"""
@@ -34,7 +35,9 @@ def validate_tasks(config):
         for field in ("name", "duration", "success_rate", "dependencies"):
             if field not in task:
                 raise ValueError(f"第 {index} 个任务缺少字段：{field}")
-
+        
+        
+        #任务名称判断
         name = task["name"]
         if not isinstance(name, str) or not name.strip():
             raise ValueError(f"第 {index} 个任务的 name 必须是非空字符串")
@@ -44,7 +47,35 @@ def validate_tasks(config):
 
         names.add(name)
 
+
+        # 对于任务的配置进行判断
+        duration = task["duration"]
+
+        if (
+            isinstance(duration, bool)
+            or not isinstance(duration, (int, float))
+            or not math.isfinite(duration)
+            or duration < 0
+        ):
+            raise ValueError(
+                f"任务 {name} 的 duration 必须是非负的有限数值"
+            )
+
+        success_rate = task["success_rate"]
+
+        if (
+            isinstance(success_rate, bool)
+            or not isinstance(success_rate, (int, float))
+            or not 0 <= success_rate <= 1
+        ):
+            raise ValueError(
+                f"任务 {name} 的 success_rate 必须是 0 到 1 之间的数值"
+            )
+
+
+        #对于依赖进行判断
         dependencies = task["dependencies"]
+ 
         if not isinstance(dependencies, list):
             raise ValueError(f"任务 {name} 的 dependencies 必须是列表")
 
@@ -117,12 +148,35 @@ def topological_sort(tasks):
 
 
 def main():
-    config = load_config("tasks_demo.yaml")
-    tasks = validate_tasks(config)
-    order = topological_sort(tasks)
+    
+    try:
+        config = load_config("tasks_demo.yaml")
+        tasks = validate_tasks(config)
+        order = topological_sort(tasks)
+
+    except FileNotFoundError as error:
+        print(
+            f"错误：找不到配置文件：{error.filename}",
+            file=sys.stderr
+        )
+        return 1
+
+    except yaml.YAMLError as error:
+        print(
+            f"错误：YAML 格式不正确：{error}",
+            file=sys.stderr
+        )
+        return 1
+
+    except (OSError, ValueError) as error:
+        print(f"错误：{error}", file=sys.stderr)
+        return 1
 
     for name in order:
         print(name)
+
+    return 0
+
 
 if __name__ == "__main__":
     main()
