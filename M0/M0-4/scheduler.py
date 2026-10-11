@@ -24,7 +24,7 @@ def validate_tasks(config):
         raise ValueError("配置内容必须是字典")
 
     tasks = config.get("tasks")
-    
+
     if not isinstance(tasks, list) or not tasks:
         raise ValueError("tasks 必须是非空列表")
 
@@ -149,8 +149,12 @@ def topological_sort(tasks):
 
     return order
 
-def execute_tasks(tasks, order):
+def execute_tasks(tasks, order, timeout):
     """按依赖顺序模拟执行，失败最多重试两次。"""
+
+    started_at = time.monotonic()
+    deadline = started_at + timeout
+
     # 建立“任务名 → 任务配置”的对应关系。
     task_map = {}
 
@@ -159,8 +163,15 @@ def execute_tasks(tasks, order):
 
     # 保存每个任务的最终状态。
     statuses = {}
+    timed_out = False
 
     for name in order:
+
+        # 开始处理任务前，检查是否超时。
+        if time.monotonic() >= deadline:
+            timed_out = True
+            break
+
         task = task_map[name]
 
         # 检查前置任务是否全部成功。
@@ -178,12 +189,26 @@ def execute_tasks(tasks, order):
 
         # 最多尝试三次：首次执行 + 两次重试。
         for attempt in range(1, 4):
+
+             # 每次尝试前，计算还剩多少时间。
+            remaining = deadline - time.monotonic()
+            
+            if remaining <= 0:
+                timed_out = True
+                break
+
             print(
                 f"执行：{name}，第 {attempt} 次尝试",
                 flush=True
             )
 
-            time.sleep(task["duration"])
+            # 最多等待到截止时间。
+            time.sleep(min(task["duration"], remaining))
+
+            # 等待结束后，先检查是否超时。
+            if time.monotonic() >= deadline:
+                timed_out = True
+                break
 
             if random.random() < task["success_rate"]:
                 statuses[name] = "SUCCESS"
@@ -200,6 +225,22 @@ def execute_tasks(tasks, order):
                     f"SKIPPED：{name}，三次尝试均失败",
                     flush=True
                 )
+        
+         # 内层循环因超时退出后，外层循环也要退出。
+        if timed_out:
+            break
+    
+    if timed_out:
+        print("TIMEOUT：全局时间已用完", flush=True)
+
+        # 当前未完成的任务和未开始的任务都标记为超时。
+        for name in order:
+            if name not in statuses:
+                statuses[name] = "TIMEOUT"
+                print(f"TIMEOUT：{name}", flush=True)
+
+    total_duration = time.monotonic() - started_at
+    print(f"总耗时：{total_duration:.2f} 秒", flush=True)
 
     return statuses
 
@@ -210,12 +251,25 @@ def main():
         tasks = validate_tasks(config)
         order = topological_sort(tasks)
 
+        timeout = config.get("timeout", 15)
+
+        if (
+            isinstance(timeout, bool)
+            or not isinstance(timeout, (int, float))
+            or not math.isfinite(timeout)
+            or timeout <= 0
+        ):
+            raise ValueError("timeout 必须是大于 0 的有限数值")
+
+        timeout = config.get("timeout", 15)
+        execute_tasks(tasks, order, timeout)
+
     except FileNotFoundError as error:
-        print(
-            f"错误：找不到配置文件：{error.filename}",
-            file=sys.stderr
-        )
-        return 1
+            print(
+                f"错误：找不到配置文件：{error.filename}",
+                file=sys.stderr
+            )
+            return 1
 
     except yaml.YAMLError as error:
         print(
@@ -228,10 +282,8 @@ def main():
         print(f"错误：{error}", file=sys.stderr)
         return 1
 
-    execute_tasks(tasks, order)
-
     return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
