@@ -4,6 +4,8 @@ import yaml
 from collections import deque
 import math
 import sys
+import random
+import time
 
 def load_config(path):
     """读取 JSON 或 YAML。"""
@@ -22,12 +24,13 @@ def validate_tasks(config):
         raise ValueError("配置内容必须是字典")
 
     tasks = config.get("tasks")
+    
     if not isinstance(tasks, list) or not tasks:
         raise ValueError("tasks 必须是非空列表")
 
     names = set()
 
- # 第一遍：检查每个任务，收集所有任务名。
+     # 第一遍：检查每个任务，收集所有任务名。
     for index, task in enumerate(tasks, start=1):
         if not isinstance(task, dict):
             raise ValueError(f"第 {index} 个任务必须是字典")
@@ -146,9 +149,62 @@ def topological_sort(tasks):
 
     return order
 
+def execute_tasks(tasks, order):
+    """按依赖顺序模拟执行，失败最多重试两次。"""
+    # 建立“任务名 → 任务配置”的对应关系。
+    task_map = {}
+
+    for task in tasks:
+        task_map[task["name"]] = task
+
+    # 保存每个任务的最终状态。
+    statuses = {}
+
+    for name in order:
+        task = task_map[name]
+
+        # 检查前置任务是否全部成功。
+        blocked = False
+
+        for dependency in task["dependencies"]:
+            if statuses[dependency] != "SUCCESS":
+                blocked = True
+                break
+
+        if blocked:
+            statuses[name] = "SKIPPED"
+            print(f"SKIPPED：{name}，前置任务未成功", flush=True)
+            continue
+
+        # 最多尝试三次：首次执行 + 两次重试。
+        for attempt in range(1, 4):
+            print(
+                f"执行：{name}，第 {attempt} 次尝试",
+                flush=True
+            )
+
+            time.sleep(task["duration"])
+
+            if random.random() < task["success_rate"]:
+                statuses[name] = "SUCCESS"
+                print(f"SUCCESS：{name}", flush=True)
+                break
+
+            print(f"FAILED：{name}", flush=True)
+
+            if attempt < 3:
+                print(f"RETRY：{name}", flush=True)
+            else:
+                statuses[name] = "SKIPPED"
+                print(
+                    f"SKIPPED：{name}，三次尝试均失败",
+                    flush=True
+                )
+
+    return statuses
 
 def main():
-    
+
     try:
         config = load_config("tasks_demo.yaml")
         tasks = validate_tasks(config)
@@ -172,8 +228,7 @@ def main():
         print(f"错误：{error}", file=sys.stderr)
         return 1
 
-    for name in order:
-        print(name)
+    execute_tasks(tasks, order)
 
     return 0
 
