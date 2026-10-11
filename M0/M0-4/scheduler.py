@@ -150,6 +150,24 @@ def topological_sort(tasks):
 
     return order
 
+def print_status(status, message):
+    """终端输出彩色状态；重定向或管道输出时使用普通文字。"""
+    colors = {
+        "SUCCESS": "\033[32m",
+        "FAILED": "\033[31m",
+        "RETRY": "\033[33m",
+        "SKIPPED": "\033[34m"
+    }
+
+    text = f"{status}：{message}"
+    if sys.stdout.isatty():
+        color = colors.get(status, "")
+        if color:
+            text = f"{color}{text}\033[0m"
+
+    print(text, flush=True)
+
+
 def execute_tasks(tasks, order, timeout):
     """按依赖顺序模拟执行，返回包含全部任务的报告。"""
 
@@ -194,7 +212,7 @@ def execute_tasks(tasks, order, timeout):
 
         if blocked:
             record["status"] = "SKIPPED"
-            print(f"SKIPPED：{name}，前置任务未成功", flush=True)
+            print_status("SKIPPED", f"{name}，前置任务未成功")
             continue
 
         # 最多尝试三次：首次执行 + 两次重试。
@@ -231,32 +249,29 @@ def execute_tasks(tasks, order, timeout):
 
             if random.random() < task["success_rate"]:
                 record["status"] = "SUCCESS"
-                print(f"SUCCESS：{name}", flush=True)
+                print_status("SUCCESS", name)
                 break
 
-            print(f"FAILED：{name}", flush=True)
+            print_status("FAILED", name)
 
             if attempt < 3:
-                print(f"RETRY：{name}", flush=True)
+                print_status("RETRY", name)
             else:
                 record["status"] = "SKIPPED"
-                print(
-                    f"SKIPPED：{name}，三次尝试均失败",
-                    flush=True
-                )
+                print_status("SKIPPED", f"{name}，三次尝试均失败")
         
          # 内层循环因超时退出后，外层循环也要退出。
         if timed_out:
             break
     
     if timed_out:
-        print("TIMEOUT：全局时间已用完", flush=True)
+        print_status("TIMEOUT", "全局时间已用完")
 
         # 当前未完成的任务和未开始的任务都标记为超时。
         for name in order:
             if records[name]["status"] is None:
                 records[name]["status"] = "TIMEOUT"
-                print(f"TIMEOUT：{name}", flush=True)
+                print_status("TIMEOUT", name)
 
     total_duration = time.monotonic() - started_at
     print(f"总耗时：{total_duration:.2f} 秒", flush=True)
